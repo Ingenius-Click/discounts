@@ -39,7 +39,7 @@ class DiscountController extends Controller
         return Response::api(
             message: __('Discount campaign created successfully'),
             data: $campaign,
-            status: 201,
+            code: 201,
         );
     }
 

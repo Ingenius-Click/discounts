@@ -17,6 +17,7 @@ use Ingenius\Discounts\Features\UpdateDiscountFeature;
 use Ingenius\Discounts\Features\ViewDiscountFeature;
 use Ingenius\Discounts\Models\DiscountCampaign;
 use Ingenius\Discounts\Policies\DiscountCampaignPolicy;
+use Ingenius\Discounts\Actions\QueryProductibleWithAvailableDiscountsAction;
 use Ingenius\Discounts\Services\DiscountApplicationService;
 use Ingenius\Discounts\Services\ProductDiscountService;
 use Ingenius\Discounts\Services\ShipmentDiscountService;
@@ -102,6 +103,17 @@ class DiscountsServiceProvider extends ServiceProvider
             $manager->register(
                 'shipping.cost.calculated',
                 [$shipmentDiscountService, 'applyDiscountsToShipment'],
+                10
+            );
+
+            // Hook: Query products with available discounts
+            $manager->register(
+                'products.query.with_discounts',
+                function ($data, $context) {
+                    $action = $this->app->make(QueryProductibleWithAvailableDiscountsAction::class);
+                    $filters = $context['filters'] ?? [];
+                    return $action->handle($filters);
+                },
                 10
             );
         });

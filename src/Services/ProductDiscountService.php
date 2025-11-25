@@ -259,20 +259,24 @@ class ProductDiscountService
     {
         $now = now();
 
+        // Get the product's category IDs for category-based discount matching
+        $categoryIds = $this->getProductCategoryIds($productId, $productClass);
+        $categoryModel = config('discounts.category_model');
+
         return DiscountCampaign::query()
             ->where('is_active', true)
             ->where('start_date', '<=', $now)
             ->where('end_date', '>=', $now)
             ->whereDoesntHave('conditions') // Only campaigns without conditions
-            ->where(function ($query) use ($productId, $productClass) {
+            ->where(function ($query) use ($productId, $productClass, $categoryIds, $categoryModel) {
                 // Campaign has no targets (applies to all products)
                 $query->whereDoesntHave('targets', function ($q) {
                     $q->where('target_action', TargetAction::APPLY_TO->value);
                 })
                 // OR has targets that include this product
-                ->orWhereHas('targets', function ($q) use ($productId, $productClass) {
+                ->orWhereHas('targets', function ($q) use ($productId, $productClass, $categoryIds, $categoryModel) {
                     $q->where('target_action', TargetAction::APPLY_TO->value)
-                        ->where(function ($targetQuery) use ($productId, $productClass) {
+                        ->where(function ($targetQuery) use ($productId, $productClass, $categoryIds, $categoryModel) {
                             // Targets this specific product
                             $targetQuery->where('targetable_type', $productClass)
                                 ->where('targetable_id', $productId);
@@ -281,6 +285,13 @@ class ProductDiscountService
                             // OR targets all products of this type (targetable_id is null)
                             $targetQuery->where('targetable_type', $productClass)
                                 ->whereNull('targetable_id');
+                        })
+                        ->orWhere(function ($targetQuery) use ($categoryIds, $categoryModel) {
+                            // OR targets a category that this product belongs to
+                            if (!empty($categoryIds) && $categoryModel) {
+                                $targetQuery->where('targetable_type', $categoryModel)
+                                    ->whereIn('targetable_id', $categoryIds);
+                            }
                         });
                 });
             })
@@ -308,21 +319,25 @@ class ProductDiscountService
     {
         $now = now();
 
+        // Get the product's category IDs for category-based discount matching
+        $categoryIds = $this->getProductCategoryIds($productId, $productClass);
+        $categoryModel = config('discounts.category_model');
+
         // Get active campaigns within date range that target this product
         $campaigns = DiscountCampaign::query()
             ->with(['conditions', 'targets']) // Eager load for client-side inspection
             ->where('is_active', true)
             ->where('start_date', '<=', $now)
             ->where('end_date', '>=', $now)
-            ->where(function ($query) use ($productId, $productClass) {
+            ->where(function ($query) use ($productId, $productClass, $categoryIds, $categoryModel) {
                 // Campaign has no targets (applies to all products)
                 $query->whereDoesntHave('targets', function ($q) {
                     $q->where('target_action', TargetAction::APPLY_TO->value);
                 })
                 // OR has targets that include this product
-                ->orWhereHas('targets', function ($q) use ($productId, $productClass) {
+                ->orWhereHas('targets', function ($q) use ($productId, $productClass, $categoryIds, $categoryModel) {
                     $q->where('target_action', TargetAction::APPLY_TO->value)
-                        ->where(function ($targetQuery) use ($productId, $productClass) {
+                        ->where(function ($targetQuery) use ($productId, $productClass, $categoryIds, $categoryModel) {
                             // Targets this specific product
                             $targetQuery->where('targetable_type', $productClass)
                                 ->where('targetable_id', $productId);
@@ -331,6 +346,13 @@ class ProductDiscountService
                             // OR targets all products of this type (targetable_id is null)
                             $targetQuery->where('targetable_type', $productClass)
                                 ->whereNull('targetable_id');
+                        })
+                        ->orWhere(function ($targetQuery) use ($categoryIds, $categoryModel) {
+                            // OR targets a category that this product belongs to
+                            if (!empty($categoryIds) && $categoryModel) {
+                                $targetQuery->where('targetable_type', $categoryModel)
+                                    ->whereIn('targetable_id', $categoryIds);
+                            }
                         });
                 });
             })
@@ -351,6 +373,38 @@ class ProductDiscountService
 
             return true;
         });
+    }
+
+    /**
+     * Get category IDs for a product
+     *
+     * @param int $productId
+     * @param string $productClass
+     * @return array Array of category IDs
+     */
+    protected function getProductCategoryIds(int $productId, string $productClass): array
+    {
+        if (!class_exists($productClass)) {
+            return [];
+        }
+
+        $product = $productClass::find($productId);
+
+        if (!$product) {
+            return [];
+        }
+
+        // Check if product has a many-to-many 'categories' relationship
+        if (method_exists($product, 'categories')) {
+            return $product->categories()->pluck('categories.id')->toArray();
+        }
+
+        // Fallback to single category_id column (belongsTo relationship)
+        if (isset($product->category_id)) {
+            return [$product->category_id];
+        }
+
+        return [];
     }
 
     /**
