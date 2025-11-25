@@ -7,12 +7,12 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 class QueryProductibleWithAvailableDiscountsAction {
 
-    public function handle(array $filters = []): Builder {
+    public function handle(Builder $incommingQuery = null): Builder {
 
         $productClass = config('discounts.product_model');
 
         // Start with all products as base query
-        $query = $productClass::query();
+        $query = $incommingQuery ? $incommingQuery : $productClass::query();
 
         // Check if calculate-discounts feature is enabled
         $tenant = tenant();

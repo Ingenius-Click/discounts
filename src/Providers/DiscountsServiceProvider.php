@@ -111,8 +111,7 @@ class DiscountsServiceProvider extends ServiceProvider
                 'products.query.with_discounts',
                 function ($data, $context) {
                     $action = $this->app->make(QueryProductibleWithAvailableDiscountsAction::class);
-                    $filters = $context['filters'] ?? [];
-                    return $action->handle($filters);
+                    return $action->handle($data);
                 },
                 10
             );
