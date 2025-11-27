@@ -190,17 +190,21 @@ class DiscountExtensionForOrderCreation extends BaseOrderExtension
             ->where('orderable_type', get_class($order))
             ->get();
 
+        $totalAmount = $usages->sum('discount_amount_applied');
+
         $items = $usages->map(fn($usage) => [
             'campaign_id' => $usage->campaign_id,
             'name' => $usage->metadata['campaign_name'] ?? 'Unknown',
             'type' => $usage->metadata['discount_type'] ?? 'unknown',
             'amount_saved' => $usage->discount_amount_applied,
+            'amount_saved_converted' => $usage->discount_amount_applied * $order->exchange_rate,
             'affected_items' => $usage->metadata['affected_items'] ?? [],
         ])->toArray();
 
         $orderArray['discounts'] = [
             'items' => $items,
-            'total_amount' => $usages->sum('discount_amount_applied'),
+            'total_amount' => $totalAmount,
+            'total_amount_converted' => $totalAmount * $order->exchange_rate,
         ];
 
         return $orderArray;

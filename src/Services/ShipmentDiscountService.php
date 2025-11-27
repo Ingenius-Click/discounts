@@ -103,6 +103,7 @@ class ShipmentDiscountService
                     'discount_type' => $result->metadata['discount_type'] ?? $result->discountType,
                     'discount_value' => $result->metadata['discount_value'] ?? 0,
                     'amount_saved' => $result->amountSaved,
+                    'amount_saved_converted' => convert_currency($result->amountSaved),
                 ];
                 $totalDiscount += $result->amountSaved;
             }
@@ -115,9 +116,12 @@ class ShipmentDiscountService
         return [
             ...$data,
             'original_price' => $calculatedCost,
+            'original_price_converted' => convert_currency($calculatedCost),
             'discounted_price' => $calculatedCost - $totalDiscount,
+            'discounted_price_converted' => convert_currency($calculatedCost - $totalDiscount),
             'shipping_discount_applied' => true,
             'shipping_discount_amount' => $totalDiscount,
+            'shipping_discount_amount_converted' => convert_currency($totalDiscount),
             'shipping_discounts' => $appliedDiscounts,
         ];
     }

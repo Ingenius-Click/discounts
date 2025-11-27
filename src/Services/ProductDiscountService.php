@@ -681,6 +681,7 @@ class ProductDiscountService
                     'campaign_name' => $result->campaignName,
                     'discount_type' => $result->discountType,
                     'amount_saved' => $result->amountSaved,
+                    'amount_saved_converted' => convert_currency($result->amountSaved),
                 ];
             }
         }
@@ -695,6 +696,7 @@ class ProductDiscountService
                     'campaign_name' => $result->campaignName,
                     'discount_type' => $result->discountType,
                     'amount_saved' => $result->amountSaved,
+                    'amount_saved_converted' => convert_currency($result->amountSaved),
                 ];
             }
         }
@@ -731,6 +733,7 @@ class ProductDiscountService
                     'campaign_name' => $result->campaignName,
                     'discount_type' => $result->discountType,
                     'amount_saved' => $result->amountSaved,
+                    'amount_saved_converted' => convert_currency($result->amountSaved),
                 ];
                 $remainingPrice -= $result->amountSaved;
             }
@@ -830,6 +833,7 @@ class ProductDiscountService
                 'campaign_name' => $result->campaignName,
                 'discount_type' => $result->discountType,
                 'amount_saved' => $result->amountSaved,
+                'amount_saved_converted' => convert_currency($result->amountSaved),
             ];
             $totalSavings += $result->amountSaved;
         }
@@ -839,7 +843,9 @@ class ProductDiscountService
             $data['applied_discounts'] = [
                 'discounts' => $appliedDiscounts,
                 'total_savings' => $totalSavings,
+                'total_savings_converted' => convert_currency($totalSavings),
                 'final_price' => $totalPrice - $totalSavings,
+                'final_price_converted' => convert_currency($totalPrice - $totalSavings),
             ];
         }
 
