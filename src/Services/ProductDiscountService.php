@@ -851,4 +851,225 @@ class ProductDiscountService
 
         return $data;
     }
+
+    /**
+     * Calculate prices for multiple products at once (bulk operation)
+     * Hook handler for 'product.bulk.prices'
+     *
+     * This method efficiently calculates both final and showcase prices for multiple
+     * products in a single operation, minimizing database queries by loading all
+     * applicable discount campaigns once and evaluating them for each product.
+     *
+     * @param array $data Initial data (empty array expected)
+     * @param array $context Context containing 'products' array with product data
+     * @return array ['ProductClass:product_id' => ['final' => int, 'showcase' => int]]
+     */
+    public function calculateBulkPrices(array $data, array $context): array
+    {
+        if (!$this->isFeatureEnabled()) {
+            return $this->buildEmptyBulkPrices($context['products'] ?? []);
+        }
+
+        $products = $context['products'] ?? [];
+        if (empty($products)) {
+            return [];
+        }
+
+        $user = AuthHelper::getUser();
+        $results = [];
+
+        // Group products by class for efficient querying
+        $productsByClass = collect($products)->groupBy('product_class');
+
+        foreach ($productsByClass as $productClass => $classProducts) {
+            $productIds = $classProducts->pluck('product_id')->toArray();
+
+            // Get all applicable campaigns for these products in one query
+            $campaigns = $this->getBulkCampaignsForProducts($productIds, $productClass);
+
+            foreach ($classProducts as $productData) {
+                $productId = $productData['product_id'];
+                $basePrice = $productData['base_price'];
+
+                // Calculate final price (all discounts - both conditional and unconditional)
+                $finalDiscount = $this->calculateProductDiscountFromCampaigns(
+                    $campaigns,
+                    $productId,
+                    $productClass,
+                    $basePrice,
+                    $user,
+                    onlyUnconditional: false
+                );
+
+                // Calculate showcase price (unconditional discounts only)
+                $showcaseDiscount = $this->calculateProductDiscountFromCampaigns(
+                    $campaigns,
+                    $productId,
+                    $productClass,
+                    $basePrice,
+                    $user,
+                    onlyUnconditional: true
+                );
+
+                $key = "{$productClass}:{$productId}";
+                $results[$key] = [
+                    'final' => $basePrice - $finalDiscount,
+                    'showcase' => $basePrice - $showcaseDiscount,
+                ];
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Calculate discount amount for a single product from a pre-loaded campaign collection
+     *
+     * @param \Illuminate\Support\Collection $campaigns Pre-loaded discount campaigns
+     * @param int $productId
+     * @param string $productClass
+     * @param int $basePrice
+     * @param mixed $user Current user or null
+     * @param bool $onlyUnconditional Whether to only apply unconditional discounts
+     * @return int Total discount amount in cents
+     */
+    protected function calculateProductDiscountFromCampaigns(
+        \Illuminate\Support\Collection $campaigns,
+        int $productId,
+        string $productClass,
+        int $basePrice,
+        mixed $user,
+        bool $onlyUnconditional = false
+    ): int {
+        // Filter campaigns based on conditional requirement
+        $applicableCampaigns = $onlyUnconditional
+            ? $campaigns->filter(fn($campaign) => $campaign->conditions->isEmpty())
+            : $campaigns;
+
+        if ($applicableCampaigns->isEmpty()) {
+            return 0;
+        }
+
+        // Build context for this product
+        $context = DiscountContext::fromCart(
+            cartTotal: $basePrice,
+            cartItems: [
+                [
+                    'productible_id' => $productId,
+                    'productible_type' => $productClass,
+                    'quantity' => 1,
+                    'base_price_per_unit_in_cents' => $basePrice,
+                    'base_total_in_cents' => $basePrice,
+                ]
+            ],
+            customerId: $user?->id,
+            customerType: $user ? get_class($user) : null,
+            requestData: []
+        );
+
+        // Calculate stackable discounts (best non-stackable + all stackables)
+        return $this->calculateStackableDiscounts($applicableCampaigns, $context, $basePrice);
+    }
+
+    /**
+     * Get all applicable discount campaigns for multiple products in a single query
+     *
+     * @param array $productIds Array of product IDs
+     * @param string $productClass Product class name
+     * @return \Illuminate\Support\Collection<DiscountCampaign>
+     */
+    protected function getBulkCampaignsForProducts(array $productIds, string $productClass): \Illuminate\Support\Collection
+    {
+        $now = now();
+        $categoryModel = config('discounts.category_model');
+
+        // Get category IDs for all products at once
+        $categoryIds = $this->getBulkProductCategoryIds($productIds, $productClass);
+
+        return DiscountCampaign::query()
+            ->with(['conditions', 'targets'])
+            ->where('is_active', true)
+            ->where('start_date', '<=', $now)
+            ->where('end_date', '>=', $now)
+            ->where(function ($query) use ($productIds, $productClass, $categoryIds, $categoryModel) {
+                // Campaign has no targets (applies to all products)
+                $query->whereDoesntHave('targets', function ($q) {
+                    $q->where('target_action', TargetAction::APPLY_TO->value);
+                })
+                // OR has targets that include these products
+                ->orWhereHas('targets', function ($q) use ($productIds, $productClass, $categoryIds, $categoryModel) {
+                    $q->where('target_action', TargetAction::APPLY_TO->value)
+                        ->where(function ($targetQuery) use ($productIds, $productClass, $categoryIds, $categoryModel) {
+                            // Targets specific products
+                            $targetQuery->where(function ($tq) use ($productIds, $productClass) {
+                                $tq->where('targetable_type', $productClass)
+                                    ->whereIn('targetable_id', $productIds);
+                            })
+                            // OR targets all products of this type
+                            ->orWhere(function ($tq) use ($productClass) {
+                                $tq->where('targetable_type', $productClass)
+                                    ->whereNull('targetable_id');
+                            })
+                            // OR targets categories that these products belong to
+                            ->orWhere(function ($tq) use ($categoryIds, $categoryModel) {
+                                if (!empty($categoryIds) && $categoryModel) {
+                                    $tq->where('targetable_type', $categoryModel)
+                                        ->whereIn('targetable_id', $categoryIds);
+                                }
+                            });
+                        });
+                });
+            })
+            ->orderBy('priority', 'desc')
+            ->get();
+    }
+
+    /**
+     * Get category IDs for multiple products in a single operation
+     *
+     * @param array $productIds Array of product IDs
+     * @param string $productClass Product class name
+     * @return array Array of unique category IDs
+     */
+    protected function getBulkProductCategoryIds(array $productIds, string $productClass): array
+    {
+        if (!class_exists($productClass)) {
+            return [];
+        }
+
+        $products = $productClass::whereIn('id', $productIds)->get();
+        $categoryIds = [];
+
+        foreach ($products as $product) {
+            if (method_exists($product, 'categories')) {
+                $categoryIds = array_merge(
+                    $categoryIds,
+                    $product->categories()->pluck('categories.id')->toArray()
+                );
+            } elseif (isset($product->category_id)) {
+                $categoryIds[] = $product->category_id;
+            }
+        }
+
+        return array_unique($categoryIds);
+    }
+
+    /**
+     * Build empty bulk prices array when feature is disabled or no products provided
+     *
+     * @param array $products Array of product data
+     * @return array Array of prices with no discounts applied
+     */
+    protected function buildEmptyBulkPrices(array $products): array
+    {
+        $results = [];
+        foreach ($products as $productData) {
+            $key = "{$productData['product_class']}:{$productData['product_id']}";
+            $results[$key] = [
+                'final' => $productData['base_price'],
+                'showcase' => $productData['base_price'],
+            ];
+        }
+        return $results;
+    }
 }

@@ -115,6 +115,13 @@ class DiscountsServiceProvider extends ServiceProvider
                 },
                 10
             );
+
+            // Hook: Bulk price calculation for multiple products
+            $manager->register(
+                'product.bulk.prices',
+                [$productDiscountService, 'calculateBulkPrices'],
+                10
+            );
         });
     }
 
