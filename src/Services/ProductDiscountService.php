@@ -682,6 +682,7 @@ class ProductDiscountService
                     'discount_type' => $result->discountType,
                     'amount_saved' => $result->amountSaved,
                     'amount_saved_converted' => convert_currency($result->amountSaved),
+                    'end_date' => $campaign->end_date
                 ];
             }
         }
@@ -697,6 +698,7 @@ class ProductDiscountService
                     'discount_type' => $result->discountType,
                     'amount_saved' => $result->amountSaved,
                     'amount_saved_converted' => convert_currency($result->amountSaved),
+                    'end_date' => $campaign->end_date
                 ];
             }
         }
@@ -734,6 +736,7 @@ class ProductDiscountService
                     'discount_type' => $result->discountType,
                     'amount_saved' => $result->amountSaved,
                     'amount_saved_converted' => convert_currency($result->amountSaved),
+                    'end_date' => $campaign->end_date
                 ];
                 $remainingPrice -= $result->amountSaved;
             }

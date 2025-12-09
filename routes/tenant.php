@@ -29,7 +29,13 @@ Route::middleware(['api', 'tenant.user'])
                 ->middleware('tenant.has.feature:view-discount');
             Route::put('/{discountCampaign}', [DiscountController::class, 'update'])
                 ->middleware(['tenant.has.feature:update-discount']);
+            Route::patch('/{discountCampaign}', [DiscountController::class, 'patch'])
+                ->middleware(['tenant.has.feature:update-discount']);
             Route::delete('/{discountCampaign}', [DiscountController::class, 'destroy'])
                 ->middleware(['tenant.has.feature:delete-discount']);
+        });
+        Route::prefix('discount-campaigns-edit')->group(function(){
+            Route::get('/{discountCampaign}', [DiscountController::class, 'edit'])
+                ->middleware('tenant.has.feature:update-discount');
         });
     });

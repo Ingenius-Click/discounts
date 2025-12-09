@@ -48,6 +48,15 @@ class DiscountCampaign extends Model
     ];
 
     /**
+     * The accessors to append to the model's array form.
+     *
+     * @var array<int, string>
+     */
+    protected $appends = [
+        'is_currently_active',
+    ];
+
+    /**
      * Get the conditions for this campaign
      */
     public function conditions(): HasMany
@@ -95,6 +104,23 @@ class DiscountCampaign extends Model
     public function scopeByPriority($query, string $direction = 'desc')
     {
         return $query->orderBy('priority', $direction);
+    }
+
+    /**
+     * Get whether the campaign is currently active
+     * (both marked as active AND within the valid date range)
+     */
+    public function getIsCurrentlyActiveAttribute(): bool
+    {
+        if (!$this->is_active) {
+            return false;
+        }
+
+        $now = now();
+
+        // Check if current date/time is within the campaign's date range
+        return $now->greaterThanOrEqualTo($this->start_date)
+            && $now->lessThanOrEqualTo($this->end_date);
     }
 
     /**

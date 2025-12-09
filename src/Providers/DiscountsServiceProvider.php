@@ -144,7 +144,10 @@ class DiscountsServiceProvider extends ServiceProvider
         
         // Load views
         $this->loadViewsFrom(__DIR__.'/../../resources/views', 'discounts');
-        
+
+        // Load translations
+        $this->loadTranslationsFrom(__DIR__.'/../../lang', 'discounts');
+
         // Load migrations
         $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
         
@@ -157,7 +160,12 @@ class DiscountsServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__.'/../../resources/views' => resource_path('views/vendor/discounts'),
         ], 'discounts-views');
-        
+
+        // Publish translations
+        $this->publishes([
+            __DIR__.'/../../lang' => $this->app->langPath('vendor/discounts'),
+        ], 'discounts-lang');
+
         // Publish migrations
         $this->publishes([
             __DIR__.'/../../database/migrations/' => database_path('migrations'),
