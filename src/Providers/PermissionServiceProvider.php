@@ -50,8 +50,8 @@ class PermissionServiceProvider extends ServiceProvider
             'View discounts',
             $this->packageName,
             'tenant',
-            'View discounts',
-            'Discounts'
+            __('discounts::permissions.display_names.view_discounts'),
+            __('discounts::permissions.groups.discounts')
         );
 
         $permissionsManager->register(
@@ -59,8 +59,8 @@ class PermissionServiceProvider extends ServiceProvider
             'Create discounts',
             $this->packageName,
             'tenant',
-            'Create discounts',
-            'Discounts'
+            __('discounts::permissions.display_names.create_discounts'),
+            __('discounts::permissions.groups.discounts')
         );
 
         $permissionsManager->register(
@@ -68,8 +68,8 @@ class PermissionServiceProvider extends ServiceProvider
             'Edit discounts',
             $this->packageName,
             'tenant',
-            'Edit discounts',
-            'Discounts'
+            __('discounts::permissions.display_names.edit_discounts'),
+            __('discounts::permissions.groups.discounts')
         );
 
         $permissionsManager->register(
@@ -77,8 +77,8 @@ class PermissionServiceProvider extends ServiceProvider
             'Delete discounts',
             $this->packageName,
             'tenant',
-            'Delete discounts',
-            'Discounts'
+            __('discounts::permissions.display_names.delete_discounts'),
+            __('discounts::permissions.groups.discounts')
         );
     }
 }

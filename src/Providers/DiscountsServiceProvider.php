@@ -34,10 +34,13 @@ class DiscountsServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../../config/discounts.php', 'discounts');
-        
+
         // Register configuration with the registry
         $this->registerConfig(__DIR__.'/../../config/discounts.php', 'discounts', 'discounts');
-        
+
+        // Load translations early so they're available for permission registration
+        $this->loadTranslationsFrom(__DIR__.'/../../lang', 'discounts');
+
         // Register the route service provider
         $this->app->register(RouteServiceProvider::class);
 
@@ -144,9 +147,6 @@ class DiscountsServiceProvider extends ServiceProvider
         
         // Load views
         $this->loadViewsFrom(__DIR__.'/../../resources/views', 'discounts');
-
-        // Load translations
-        $this->loadTranslationsFrom(__DIR__.'/../../lang', 'discounts');
 
         // Load migrations
         $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
