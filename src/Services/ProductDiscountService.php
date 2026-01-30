@@ -14,7 +14,8 @@ use Ingenius\Discounts\Enums\TargetAction;
 class ProductDiscountService
 {
     public function __construct(
-        protected DiscountApplicationService $discountService
+        protected DiscountApplicationService $discountService,
+        protected DiscountEvaluator $discountEvaluator
     ) {}
 
     /**
@@ -556,8 +557,6 @@ class ProductDiscountService
             return $basePrice;
         }
 
-        // Get the most favorable UNCONDITIONAL discount amount
-        // This ensures we only show discounts that will definitely apply
         $discountAmount = $this->getMostFavorableDiscount(
             $productId,
             $productClass,
@@ -944,16 +943,7 @@ class ProductDiscountService
         mixed $user,
         bool $onlyUnconditional = false
     ): int {
-        // Filter campaigns based on conditional requirement
-        $applicableCampaigns = $onlyUnconditional
-            ? $campaigns->filter(fn($campaign) => $campaign->conditions->isEmpty())
-            : $campaigns;
-
-        if ($applicableCampaigns->isEmpty()) {
-            return 0;
-        }
-
-        // Build context for this product
+        // Build context for this product (needed for condition evaluation)
         $context = DiscountContext::fromCart(
             cartTotal: $basePrice,
             cartItems: [
@@ -969,6 +959,21 @@ class ProductDiscountService
             customerType: $user ? get_class($user) : null,
             requestData: []
         );
+
+        // Filter campaigns based on conditional requirement
+        if ($onlyUnconditional) {
+            // Only include campaigns without conditions
+            $applicableCampaigns = $campaigns->filter(fn($campaign) => $campaign->conditions->isEmpty());
+        } else {
+            // Evaluate conditions for each campaign using the DiscountEvaluator
+            $applicableCampaigns = $campaigns->filter(function($campaign) use ($context) {
+                return $this->discountEvaluator->isCampaignApplicable($campaign, $context);
+            });
+        }
+
+        if ($applicableCampaigns->isEmpty()) {
+            return 0;
+        }
 
         // Calculate stackable discounts (best non-stackable + all stackables)
         return $this->calculateStackableDiscounts($applicableCampaigns, $context, $basePrice);

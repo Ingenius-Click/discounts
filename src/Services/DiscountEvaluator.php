@@ -94,6 +94,25 @@ class DiscountEvaluator
     }
 
     /**
+     * Check if a campaign is applicable for the given context
+     * This checks both usage limits and conditions
+     *
+     * @param DiscountCampaign $campaign
+     * @param DiscountContext $context
+     * @return bool
+     */
+    public function isCampaignApplicable(DiscountCampaign $campaign, DiscountContext $context): bool
+    {
+        // Check usage limits first (faster check)
+        if (!$this->checkUsageLimits($campaign, $context)) {
+            return false;
+        }
+
+        // Then evaluate conditions
+        return $this->evaluateConditions($campaign, $context);
+    }
+
+    /**
      * Check if campaign has reached its usage limits
      */
     protected function checkUsageLimits(DiscountCampaign $campaign, DiscountContext $context): bool
