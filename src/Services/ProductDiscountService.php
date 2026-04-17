@@ -990,24 +990,42 @@ class ProductDiscountService
     {
         $now = now();
         $categoryModel = config('discounts.category_model');
+        $variantModel = config('discounts.variant_model', 'Ingenius\Products\Models\ProductVariant');
+        $productModel = config('discounts.product_model');
 
         // Get category IDs for all products at once
         $categoryIds = $this->getBulkProductCategoryIds($productIds, $productClass);
+
+        // If querying for variants, also get their parent product IDs and categories
+        $parentProductIds = [];
+        $parentCategoryIds = [];
+        $isVariantClass = $productClass === $variantModel;
+
+        if ($isVariantClass && class_exists($variantModel)) {
+            $parentProductIds = $variantModel::whereIn('id', $productIds)
+                ->pluck('product_id')
+                ->unique()
+                ->toArray();
+
+            if (!empty($parentProductIds)) {
+                $parentCategoryIds = $this->getBulkProductCategoryIds($parentProductIds, $productModel);
+            }
+        }
 
         return DiscountCampaign::query()
             ->with(['conditions', 'targets'])
             ->where('is_active', true)
             ->where('start_date', '<=', $now)
             ->where('end_date', '>=', $now)
-            ->where(function ($query) use ($productIds, $productClass, $categoryIds, $categoryModel) {
+            ->where(function ($query) use ($productIds, $productClass, $categoryIds, $categoryModel, $isVariantClass, $parentProductIds, $parentCategoryIds, $productModel) {
                 // Campaign has no targets (applies to all products)
                 $query->whereDoesntHave('targets', function ($q) {
                     $q->where('target_action', TargetAction::APPLY_TO->value);
                 })
                 // OR has targets that include these products
-                ->orWhereHas('targets', function ($q) use ($productIds, $productClass, $categoryIds, $categoryModel) {
+                ->orWhereHas('targets', function ($q) use ($productIds, $productClass, $categoryIds, $categoryModel, $isVariantClass, $parentProductIds, $parentCategoryIds, $productModel) {
                     $q->where('target_action', TargetAction::APPLY_TO->value)
-                        ->where(function ($targetQuery) use ($productIds, $productClass, $categoryIds, $categoryModel) {
+                        ->where(function ($targetQuery) use ($productIds, $productClass, $categoryIds, $categoryModel, $isVariantClass, $parentProductIds, $parentCategoryIds, $productModel) {
                             // Targets specific products
                             $targetQuery->where(function ($tq) use ($productIds, $productClass) {
                                 $tq->where('targetable_type', $productClass)
@@ -1025,6 +1043,28 @@ class ProductDiscountService
                                         ->whereIn('targetable_id', $categoryIds);
                                 }
                             });
+
+                            // For variants: also match campaigns targeting the parent product
+                            if ($isVariantClass && !empty($parentProductIds)) {
+                                // Targets the parent product specifically
+                                $targetQuery->orWhere(function ($tq) use ($parentProductIds, $productModel) {
+                                    $tq->where('targetable_type', $productModel)
+                                        ->whereIn('targetable_id', $parentProductIds);
+                                })
+                                // OR targets all products
+                                ->orWhere(function ($tq) use ($productModel) {
+                                    $tq->where('targetable_type', $productModel)
+                                        ->whereNull('targetable_id');
+                                });
+
+                                // OR targets categories of the parent product
+                                if (!empty($parentCategoryIds)) {
+                                    $targetQuery->orWhere(function ($tq) use ($parentCategoryIds, $categoryModel) {
+                                        $tq->where('targetable_type', $categoryModel)
+                                            ->whereIn('targetable_id', $parentCategoryIds);
+                                    });
+                                }
+                            }
                         });
                 });
             })

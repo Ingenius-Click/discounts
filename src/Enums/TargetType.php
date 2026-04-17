@@ -8,6 +8,7 @@ enum TargetType: string
     case CATEGORIES = 'categories';
     case SHIPMENT = 'shipment';
     case SHOPCART = 'shopcart';
+    case VARIANTS = 'variants';
 
     /**
      * Get the fully qualified namespace for this target type
@@ -19,6 +20,7 @@ enum TargetType: string
             self::CATEGORIES => config('discounts.category_model'),
             self::SHIPMENT => config('discounts.shipment_model'),
             self::SHOPCART => config('discounts.shop_cart_model'),
+            self::VARIANTS => config('discounts.variant_model', 'Ingenius\Products\Models\ProductVariant'),
         };
     }
 

@@ -251,6 +251,9 @@ class DiscountEvaluator
             return true; // No targets = applies to everything
         }
 
+        // Collect parent product IDs for any variants in the context
+        $variantParentIds = $this->getVariantParentProductIds($context);
+
         foreach ($targets as $target) {
             if($target->targetable_type === config('discounts.shop_cart_model')) {
                 return true;
@@ -272,6 +275,11 @@ class DiscountEvaluator
                 if ($context->hasProduct($target->targetable_id)) {
                     return true;
                 }
+
+                // Check if any variant in the context belongs to this product
+                if (in_array($target->targetable_id, $variantParentIds)) {
+                    return true;
+                }
             }
 
             // For category targets
@@ -280,9 +288,46 @@ class DiscountEvaluator
                     return true;
                 }
             }
+
+            // For variant targets
+            if ($target->targetable_type === config('discounts.variant_model', 'Ingenius\Products\Models\ProductVariant')) {
+                if ($target->targetable_id === null) {
+                    return true;
+                }
+
+                if ($context->hasProduct($target->targetable_id)) {
+                    return true;
+                }
+            }
         }
 
         return false;
+    }
+
+    /**
+     * Get parent product IDs for any variants present in the context
+     */
+    protected function getVariantParentProductIds(DiscountContext $context): array
+    {
+        $variantModel = config('discounts.variant_model', 'Ingenius\Products\Models\ProductVariant');
+
+        if (!class_exists($variantModel)) {
+            return [];
+        }
+
+        $variantIds = collect($context->items)
+            ->where('productible_type', $variantModel)
+            ->pluck('productible_id')
+            ->toArray();
+
+        if (empty($variantIds)) {
+            return [];
+        }
+
+        return $variantModel::whereIn('id', $variantIds)
+            ->pluck('product_id')
+            ->unique()
+            ->toArray();
     }
 
     /**

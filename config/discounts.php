@@ -14,5 +14,6 @@ return [
     'category_model' => env('CATEGORY_MODEL',  'Ingenius\Products\Models\Category'),
     'order_model' => env('ORDER_MODEL', 'Ingenius\Orders\Models\Order'),
     'shop_cart_model' => env('SHOP_CART_MODEL', 'Ingenius\ShopCart\Services\ShopCart'),
-    'shipment_model' => env('SHIPMENT_MODEL', 'Ingenius\Shipment\Models\Shipment')
+    'shipment_model' => env('SHIPMENT_MODEL', 'Ingenius\Shipment\Models\Shipment'),
+    'variant_model' => env('VARIANT_MODEL', 'Ingenius\Products\Models\ProductVariant')
 ];

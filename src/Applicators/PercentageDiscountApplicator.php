@@ -73,25 +73,46 @@ class PercentageDiscountApplicator implements IDiscountApplicator
         }
 
         $eligibleProductIds = [];
+        $eligibleVariantIds = [];
+        $eligibleParentProductIds = [];
+        $variantModel = config('discounts.variant_model', 'Ingenius\Products\Models\ProductVariant');
 
         foreach ($targets as $target) {
             if ($target->targetable_type === config('discounts.product_model')) {
                 if ($target->targetable_id === null) {
-                    // Applies to all products
                     return $context->items;
                 }
                 $eligibleProductIds[] = $target->targetable_id;
+                $eligibleParentProductIds[] = $target->targetable_id;
+            }
+
+            if ($target->targetable_type === $variantModel) {
+                if ($target->targetable_id === null) {
+                    return $context->items;
+                }
+                $eligibleVariantIds[] = $target->targetable_id;
             }
 
             if ($target->targetable_type === config('discounts.category_model')) {
-                // Get products from this category
                 $categoryProductIds = $this->getProductsFromCategory($target->targetable_id);
                 $eligibleProductIds = array_merge($eligibleProductIds, $categoryProductIds);
+                $eligibleParentProductIds = array_merge($eligibleParentProductIds, $categoryProductIds);
             }
         }
 
+        // Resolve variant IDs from parent product IDs
+        if (!empty($eligibleParentProductIds) && class_exists($variantModel)) {
+            $variantIdsFromParents = $variantModel::whereIn('product_id', $eligibleParentProductIds)
+                ->pluck('id')
+                ->toArray();
+            $eligibleVariantIds = array_merge($eligibleVariantIds, $variantIdsFromParents);
+        }
+
         // Filter context items to only eligible ones
-        return array_filter($context->items, function ($item) use ($eligibleProductIds) {
+        return array_filter($context->items, function ($item) use ($eligibleProductIds, $eligibleVariantIds, $variantModel) {
+            if ($item['productible_type'] === $variantModel) {
+                return in_array($item['productible_id'], $eligibleVariantIds);
+            }
             return in_array($item['productible_id'], $eligibleProductIds);
         });
     }
